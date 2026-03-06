@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Splitwise MVP — Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-slate-100 min-h-screen p-6">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-2xl font-bold text-slate-800 mb-6">Splitwise MVP — Balances & Settlement</h1>
+
+        <!-- Groups List -->
+        <section class="bg-white rounded-lg shadow p-4 mb-6">
+            <h2 class="text-lg font-semibold text-slate-700 mb-3">Groups</h2>
+            {% if groups %}
+            <ul class="space-y-2">
+                {% for g in groups %}
+                <li>
+                    <a href="/dashboard?group_id={{ g.id }}"
+                        class="block px-4 py-2 rounded {% if selected_group_id == g.id %}bg-indigo-100 border-l-4 border-indigo-600{% else %}hover:bg-slate-50{% endif %}">
+                        {{ g.name }} <span class="text-slate-500 text-sm">(ID: {{ g.id }})</span>
+                    </a>
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <p class="text-slate-500">No groups yet. Create one via API: <code
+                    class="bg-slate-200 px-1">POST /groups/</code></p>
+            {% endif %}
+        </section>
+
+        {% if selected_group %}
+        <!-- Net Balances -->
+        <section class="bg-white rounded-lg shadow p-4 mb-6">
+            <h2 class="text-lg font-semibold text-slate-700 mb-3">Net Balances — {{ selected_group.name }}</h2>
+            {% if balances %}
+            <table class="w-full">
+                <thead>
+                    <tr class="border-b border-slate-200">
+                        <th class="text-left py-2">Member</th>
+                        <th class="text-right py-2">Balance</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for b in balances %}
+                    <tr class="border-b border-slate-100">
+                        <td class="py-2">{{ user_names.get(b.user_id, 'User #' ~ b.user_id) }}</td>
+                        <td
+                            class="text-right py-2 font-mono {% if b.balance > 0 %}text-green-600{% elif b.balance < 0 %}text-red-600{% else %}text-slate-500{% endif %}">
+                            {% if b.balance > 0 %}+{% endif %}{{ "%.2f"|format(b.balance) }}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            <!-- Data Integrity -->
+            <div
+                class="mt-4 p-3 rounded {% if net_sum_ok %}bg-green-50 text-green-800{% else %}bg-red-50 text-red-800{% endif %}">
+                <strong>Data Integrity:</strong> Net Sum = {{ "%.4f"|format(net_sum) }}
+                {% if net_sum_ok %}
+                <span class="text-green-600">✓ Balanced</span>
+                {% else %}
+                <span class="text-red-600">⚠ Money leak detected</span>
+                {% endif %}
+            </div>
+            {% else %}
+            <p class="text-slate-500">No expenses in this group yet.</p>
+            {% endif %}
+        </section>
+
+        <!-- Optimized Settlement -->
+        <section class="bg-white rounded-lg shadow p-4 mb-6">
+            <h2 class="text-lg font-semibold text-slate-700 mb-3">Optimized Settlement — Who Owes Whom</h2>
+            {% if settlements %}
+            <ul class="space-y-2">
+                {% for s in settlements %}
+                <li class="flex items-center gap-2 p-3 bg-amber-50 rounded border border-amber-200">
+                    <span class="font-medium text-red-600">{{ user_names.get(s.from_user_id, 'User #' ~ s.from_user_id)
+                        }}</span>
+                    <span class="text-slate-500">pays</span>
+                    <span class="font-medium text-green-600">{{ user_names.get(s.to_user_id, 'User #' ~ s.to_user_id)
+                        }}</span>
+                    <span class="font-mono font-semibold ml-auto">{{ "%.2f"|format(s.amount) }}</span>
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <p class="text-slate-500">All settled. No transfers needed.</p>
+            {% endif %}
+        </section>
+        {% elif selected_group_id and not selected_group %}
+        <p class="text-red-600">Group not found.</p>
+        {% endif %}
+
+        <!-- Add Expense + Upload Receipt -->
+        <section class="bg-white rounded-lg shadow p-4 mb-6">
+            <h2 class="text-lg font-semibold text-slate-700 mb-3">Add Expense</h2>
+            <form id="expense-form" class="space-y-3">
+                <div class="flex gap-4 flex-wrap">
+                    <div>
+                        <label class="block text-sm text-slate-600 mb-1">Group</label>
+                        <select name="group_id" id="exp-group-select" class="border rounded px-3 py-2 w-48" required>
+                            <option value="">Select group</option>
+                            {% for g in groups %}
+                            <option value="{{ g.id }}" {% if selected_group_id==g.id %}selected{% endif %}>{{ g.name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm text-slate-600 mb-1">Payer</label>
+                        <select name="payer_id" id="exp-payer" class="border rounded px-3 py-2 w-48" required>
+                            <option value="">Select payer</option>
+                            {% for m in group_members %}
+                            <option value="{{ m.user_id }}">{{ m.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm text-slate-600 mb-1">Amount</label>
+                        <input type="number" name="amount" id="exp-amount" step="0.01" min="0"
+                            class="border rounded px-3 py-2 w-32" required placeholder="0.00">
+                    </div>
+                    <div>
+                        <label class="block text-sm text-slate-600 mb-1">Description</label>
+                        <input type="text" name="description" id="exp-description" class="border rounded px-3 py-2 w-64"
+                            placeholder="Vendor / item">
+                    </div>
+                    <div>
+                        <label class="block text-sm text-slate-600 mb-1">Category</label>
+                        <select name="category" id="exp-category" class="border rounded px-3 py-2 w-40">
+                            <option value="other">Other</option>
+                            <option value="food">Food</option>
+                            <option value="transport">Transport</option>
+                            <option value="lodging">Lodging</option>
+                            <option value="entertainment">Entertainment</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="flex gap-2">
+                    <button type="button" id="btn-upload-receipt"
+                        class="px-4 py-2 bg-amber-500 text-white rounded hover:bg-amber-600">
+                        📷 Upload Receipt (AI Scan)
+                    </button>
+                    <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">Add
+                        Expense</button>
+                </div>
+            </form>
+        </section>
+
+        <!-- Upload Receipt Modal -->
+        <div id="receipt-modal" class="fixed inset-0 bg-black/50 items-center justify-center z-50 hidden"
+            style="display: none;">
+            <div class="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
+                <h3 class="text-lg font-semibold mb-4">Upload Receipt (AI Scan)</h3>
+                <input type="file" id="receipt-file" accept="image/*" class="block w-full mb-4">
+                <div id="receipt-status-wrap" class="flex items-center gap-2 mb-4 min-h-[1.5rem]">
+                    <span id="receipt-spinner"
+                        class="hidden inline-block w-4 h-4 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin"></span>
+                    <p id="receipt-status" class="text-sm text-slate-500"></p>
+                </div>
+                <div class="flex gap-2 justify-end">
+                    <button type="button" id="btn-modal-cancel"
+                        class="px-4 py-2 border rounded hover:bg-slate-50">Cancel</button>
+                    <button type="button" id="btn-modal-upload"
+                        class="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">Scan</button>
+                </div>
+            </div>
+        </div>
+
+        <p class="text-slate-500 text-sm mt-6">API Docs: <a href="/docs"
+                class="text-indigo-600 hover:underline">/docs</a></p>
+    </div>
+
+    <script>
+        (function () {
+            const modal = document.getElementById('receipt-modal');
+            const fileInput = document.getElementById('receipt-file');
+            const statusEl = document.getElementById('receipt-status');
+            const btnUpload = document.getElementById('btn-upload-receipt');
+            const btnModalUpload = document.getElementById('btn-modal-upload');
+            const btnModalCancel = document.getElementById('btn-modal-cancel');
+            const form = document.getElementById('expense-form');
+            const expAmount = document.getElementById('exp-amount');
+            const expDescription = document.getElementById('exp-description');
+            const expGroupSelect = document.getElementById('exp-group-select');
+
+            btnUpload.addEventListener('click', () => {
+                fileInput.value = '';
+                statusEl.textContent = '';
+                modal.style.display = 'flex';
+                modal.classList.remove('hidden');
+            });
+            btnModalCancel.addEventListener('click', () => {
+                modal.style.display = 'none';
+                modal.classList.add('hidden');
+            });
+            const spinnerEl = document.getElementById('receipt-spinner');
+            btnModalUpload.addEventListener('click', async () => {
+                const file = fileInput.files[0];
+                if (!file) {
+                    statusEl.textContent = 'Please select an image.';
+                    return;
+                }
+                statusEl.textContent = 'Scanning Receipt...';
+                spinnerEl.classList.remove('hidden');
+                btnModalUpload.disabled = true;
+                const fd = new FormData();
+                fd.append('file', file);
+                try {
+                    const r = await fetch('/expenses/upload', { method: 'POST', body: fd });
+                    const data = await r.json();
+                    if (r.ok) {
+                        if (data.amount != null) expAmount.value = data.amount;
+                        if (data.description) expDescription.value = data.description;
+                        statusEl.textContent = 'Done! Form populated.';
+                        spinnerEl.classList.add('hidden');
+                        setTimeout(() => { modal.style.display = 'none'; modal.classList.add('hidden'); }, 800);
+                    } else {
+                        statusEl.textContent = Array.isArray(data.detail) ? data.detail.map(d => d.msg || d).join('; ') : (data.detail || 'Scan failed.');
+                        spinnerEl.classList.add('hidden');
+                    }
+                } catch (e) {
+                    statusEl.textContent = 'Error: ' + e.message;
+                    spinnerEl.classList.add('hidden');
+                }
+                btnModalUpload.disabled = false;
+            });
+
+            form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const groupId = document.getElementById('exp-group-select').value;
+                const payerId = document.getElementById('exp-payer').value;
+                const amount = parseFloat(document.getElementById('exp-amount').value);
+                const description = document.getElementById('exp-description').value;
+                const category = document.getElementById('exp-category').value;
+                if (!groupId || !payerId || isNaN(amount) || !description) {
+                    alert('Please fill group, payer, amount, and description.');
+                    return;
+                }
+                try {
+                    const r = await fetch('/expenses/', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            group_id: parseInt(groupId),
+                            payer_id: parseInt(payerId),
+                            amount,
+                            currency: 'ILS',
+                            description,
+                            category,
+                        }),
+                    });
+                    if (r.ok) {
+                        window.location.reload();
+                    } else {
+                        const err = await r.json();
+                        alert(err.detail || 'Failed to add expense.');
+                    }
+                } catch (err) {
+                    alert('Error: ' + err.message);
+                }
+            });
+        })();
+    </script>
+</body>
+
+</html>
