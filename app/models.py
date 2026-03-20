@@ -6,7 +6,7 @@ Design: prevents duplicates, supports balance/settlement logic.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Optional
 
@@ -35,7 +35,7 @@ class User(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str = Field(max_length=255)
     email: str = Field(max_length=255, unique=True, index=True)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class Group(SQLModel, table=True):
@@ -45,7 +45,7 @@ class Group(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str = Field(max_length=255)
     owner_id: int = Field(foreign_key="users.id")
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class GroupMember(SQLModel, table=True):
@@ -72,7 +72,7 @@ class Expense(SQLModel, table=True):
     currency: str = Field(default="ILS", max_length=3)
     description: str = Field(max_length=500)
     category: ExpenseCategory = Field(default=ExpenseCategory.OTHER)
-    date: datetime = Field(default_factory=datetime.utcnow)
+    date: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class ExpenseShare(SQLModel, table=True):

@@ -1,0 +1,89 @@
+# Cursor AI Indexer - Ignore heavy directories
+# Prevent re-indexing of resource-intensive folders
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+.conda/
+conda/
+
+# Python cache and build
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pyi
+.pytest_cache/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# Build and distribution
+build/
+dist/
+*.egg-info/
+*.egg
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Git
+.git/
+.gitignore
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Data and logs
+data/
+logs/
+*.log
+*.db
+*.sqlite
+*.sqlite3
+
+# Temporary files
+.tmp/
+temp/
+*.tmp
+
+# Documentation build
+docs/_build/
+site/
+
+# Jupyter notebooks
+.ipynb_checkpoints/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Cache directories
+.cache/
+.parcel-cache/
+
+# Testing
+.coverage
+.pytest_cache/
+test-results/
+
+# Site packages
+site-packages/

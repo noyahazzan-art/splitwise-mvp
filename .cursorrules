@@ -1,0 +1,68 @@
+# Cursor IDE Performance Rules
+# Aggressive optimization for minimal resource usage
+
+[python.analysis]
+exclude = [
+    ".venv",
+    "venv", 
+    "__pycache__",
+    ".pytest_cache",
+    ".git",
+    "node_modules",
+    "site-packages",
+    "*.pyc",
+    "*.pyo"
+]
+type_checking = "off"
+disable_language_services = true
+disable_auto_import = true
+disable_import_completion = true
+max_file_size_mb = 1
+
+[performance]
+max_concurrent_analysis = 1
+cache_analysis = false
+disable_diagnostics = true
+disable_hover = true
+disable_completions = true
+disable_goto_definition = true
+disable_find_references = true
+
+[watcher]
+exclude_patterns = [
+    ".venv/**",
+    "venv/**",
+    "__pycache__/**",
+    ".pytest_cache/**",
+    ".git/**",
+    "node_modules/**",
+    "*.pyc",
+    "*.pyo",
+    "*.pyd",
+    "*.so",
+    "*.egg-info/**",
+    "dist/**",
+    "build/**"
+]
+
+[editor]
+minimap = false
+line_numbers = "on"
+folding = false
+glyph_margin = false
+render_whitespace = "none"
+render_indent_guides = false
+bracket_pair_colorization = false
+code_lens = false
+lightbulb = false
+parameter_hints = false
+hover = false
+quick_suggestions = false
+word_based_suggestions = false
+suggest_snippets = false
+suggest_keywords = false
+
+[telemetry]
+enabled = false
+experiments = false
+usage_statistics = false

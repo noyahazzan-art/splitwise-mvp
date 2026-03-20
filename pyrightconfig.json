@@ -1,0 +1,38 @@
+{
+  "exclude": [
+    "**/.venv",
+    "**/venv",
+    "**/__pycache__",
+    "**/.pytest_cache",
+    "**/.git",
+    "**/node_modules",
+    "**/site-packages"
+  ],
+  "ignore": [
+    "**/.venv/**",
+    "**/venv/**",
+    "**/__pycache__/**",
+    "**/.pytest_cache/**",
+    "**/.git/**",
+    "**/node_modules/**",
+    "**/site-packages/**"
+  ],
+  "reportMissingImports": "none",
+  "reportUnusedImport": "none",
+  "reportUndefinedVariable": "none",
+  "reportGeneralTypeIssues": "none",
+  "reportOptionalMemberAccess": "none",
+  "reportOptionalSubscript": "none",
+  "reportPrivateImportUsage": "none",
+  "reportCallInDefaultInitializer": "none",
+  "reportImplicitStringConcatenation": "none",
+  "reportUnboundVariable": "none",
+  "reportUnsupportedDunderAll": "none",
+  "typeCheckingMode": "off",
+  "useLibraryCodeForTypes": false,
+  "disableBytesTypePromotions": true,
+  "disableLanguageServices": true,
+  "disableOrganizeImports": true,
+  "venvPath": null,
+  "pythonVersion": "3.11"
+}

@@ -1,0 +1,41 @@
+# Windsurf Configuration Rules
+# Optimize performance by excluding heavy directories from analysis
+
+[python]
+exclude_dirs = [
+    ".venv",
+    "venv", 
+    "__pycache__",
+    ".pytest_cache",
+    ".git",
+    "node_modules",
+    "site-packages"
+]
+
+[analysis]
+type_checking = "basic"
+disable_import_completion = true
+disable_auto_import = true
+max_file_size_mb = 5
+
+[performance]
+max_concurrent_analysis = 2
+cache_analysis = true
+exclude_patterns = [
+    "*.pyc",
+    "*.pyo",
+    "*.pyd",
+    "*.so"
+]
+
+[watcher]
+exclude_patterns = [
+    ".venv/**",
+    "venv/**",
+    "__pycache__/**",
+    ".pytest_cache/**",
+    ".git/**",
+    "node_modules/**",
+    "*.pyc",
+    "*.pyo"
+]

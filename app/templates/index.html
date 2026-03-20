@@ -6,11 +6,58 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Splitwise MVP — Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .fade-in {
+            animation: fadeIn 0.3s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .balance-positive {
+            color: #059669;
+        }
+
+        .balance-negative {
+            color: #dc2626;
+        }
+
+        .balance-zero {
+            color: #6b7280;
+        }
+    </style>
 </head>
 
-<body class="bg-slate-100 min-h-screen p-6">
-    <div class="max-w-4xl mx-auto">
-        <h1 class="text-2xl font-bold text-slate-800 mb-6">Splitwise MVP — Balances & Settlement</h1>
+<body class="bg-gradient-to-br from-slate-50 to-slate-100 min-h-screen p-6">
+    <div class="max-w-6xl mx-auto">
+        <!-- Header -->
+        <header class="bg-white rounded-lg shadow-sm p-6 mb-6 fade-in">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h1 class="text-3xl font-bold text-slate-800">💰 Splitwise MVP</h1>
+                    <p class="text-slate-600 mt-1">Expense splitting & balance settlement</p>
+                </div>
+                <div class="flex items-center gap-4">
+                    <button onclick="refreshData()"
+                        class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors">
+                        🔄 Refresh
+                    </button>
+                    <a href="/docs" target="_blank"
+                        class="bg-slate-700 hover:bg-slate-800 text-white px-4 py-2 rounded-lg transition-colors">
+                        📚 API Docs
+                    </a>
+                </div>
+            </div>
+        </header>
 
         <!-- Groups List -->
         <section class="bg-white rounded-lg shadow p-4 mb-6">
@@ -265,6 +312,33 @@
                 }
             });
         })();
+    </script>
+    <script>
+        async function refreshData() {
+            const refreshBtn = event.target;
+            refreshBtn.disabled = true;
+            refreshBtn.textContent = '🔄 Refreshing...';
+
+            try {
+                await new Promise(resolve => setTimeout(resolve, 500));
+                window.location.reload();
+            } catch (error) {
+                console.error('Refresh error:', error);
+                refreshBtn.disabled = false;
+                refreshBtn.textContent = '🔄 Refresh';
+            }
+        }
+
+        // Auto-refresh every 30 seconds
+        setInterval(() => {
+            const autoRefresh = document.querySelector('.auto-refresh-indicator');
+            if (autoRefresh) {
+                autoRefresh.style.opacity = '0.5';
+                setTimeout(() => {
+                    autoRefresh.style.opacity = '1';
+                }, 500);
+            }
+        }, 30000);
     </script>
 </body>
 

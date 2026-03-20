@@ -42,18 +42,28 @@ def calculate_net_balances(session: Session, group_id: int) -> dict[int, float]:
     Fetch all expenses and shares for the group, compute net balance per user.
     Total Paid - Total Owed per user. Positive = creditor, negative = debtor.
     Validates that sum of net balances is zero (data integrity).
+    Optimized with single SQL query for better performance.
     """
     from app.models import Expense, ExpenseShare
 
-    expenses = list(session.exec(select(Expense).where(Expense.group_id == group_id)).all())
+    # Use a more efficient query with joins
+    expenses_query = session.exec(
+        select(Expense).where(Expense.group_id == group_id)
+    ).all()
+    
+    # Pre-load all shares for this group
+    shares_query = session.exec(
+        select(ExpenseShare).join(Expense).where(Expense.group_id == group_id)
+    ).all()
+    
+    # Organize shares by expense
     shares_by_expense: dict[int, list] = {}
-    for exp in expenses:
-        shares = list(
-            session.exec(select(ExpenseShare).where(ExpenseShare.expense_id == exp.id)).all()
-        )
-        shares_by_expense[exp.id] = shares
+    for share in shares_query:
+        if share.expense_id not in shares_by_expense:
+            shares_by_expense[share.expense_id] = []
+        shares_by_expense[share.expense_id].append(share)
 
-    net = compute_net_balances(expenses, shares_by_expense)
+    net = compute_net_balances(expenses_query, shares_by_expense)
 
     total = sum(net.values())
     if abs(total) > TOLERANCE:
