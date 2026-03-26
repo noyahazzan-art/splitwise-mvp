@@ -1,0 +1,156 @@
+version: '3.8'
+
+services:
+  # Main FastAPI Application
+  splitwise-api:
+    build: .
+    container_name: splitwise-api
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    environment:
+      - DATABASE_URL=sqlite:///./data/splitwise.db
+      - PYTHONPATH=/app
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./data:/app/data
+      - ./app:/app/app
+    depends_on:
+      - db
+    networks:
+      - splitwise-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # PostgreSQL Database (optional - can use SQLite)
+  db:
+    image: postgres:15-alpine
+    container_name: splitwise-db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=splitwise
+      - POSTGRES_PASSWORD=splitwise123
+      - POSTGRES_DB=splitwise
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    ports:
+      - "5432:5432"
+    networks:
+      - splitwise-network
+    profiles:
+      - postgres  # Only start with --profile postgres
+
+  # Agent Service (Port 8080)
+  agent-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.agent
+    container_name: splitwise-agent
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - SPLITWISE_API_URL=http://splitwise-api:8001
+      - PYTHONUNBUFFERED=1
+    depends_on:
+      - splitwise-api
+    networks:
+      - splitwise-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  # OpenHands AI Agent (Port 3001)
+  openhands:
+    image: ghcr.io/all-hands-ai/openhands:latest
+    container_name: openhands-agent
+    restart: unless-stopped
+    environment:
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - PYTHONUNBUFFERED=1
+      - OPENHANDS_API_KEY=${OPENHANDS_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - SANDBOX_CONTAINER_URL_PATTERN=http://172.17.0.1:{port}
+    volumes:
+      - ./:/workspace:rw
+      - /var/run/docker.sock:/var/run/docker.sock:rw
+    working_dir: /workspace
+    ports:
+      - "3001:3000"
+    stdin_open: true
+    tty: true
+    networks:
+      - splitwise-network
+    depends_on:
+      - ollama
+    profiles:
+      - ai  # Only start with --profile ai
+
+  # Ollama AI Service (Port 11434)
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama-service
+    restart: unless-stopped
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+    volumes:
+      - ollama_data:/root/.ollama
+    ports:
+      - "11434:11434"
+    networks:
+      - splitwise-network
+    profiles:
+      - ai  # Only start with --profile ai
+
+  # Redis for caching (optional)
+  redis:
+    image: redis:7-alpine
+    container_name: splitwise-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - splitwise-network
+    profiles:
+      - cache  # Only start with --profile cache
+
+  # Nginx reverse proxy (optional)
+  nginx:
+    image: nginx:alpine
+    container_name: splitwise-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - splitwise-api
+      - agent-service
+    networks:
+      - splitwise-network
+    profiles:
+      - production  # Only start with --profile production
+
+volumes:
+  postgres_data:
+    driver: local
+  ollama_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  splitwise-network:
+    driver: bridge
