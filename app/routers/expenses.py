@@ -1,19 +1,37 @@
-"""Expenses API."""
+"""Expenses API with authentication and enhanced validation."""
 
 from pathlib import Path
+from typing import List
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlmodel import Session, select
 
 from app.database import get_session
-from app.models import Expense, ExpenseShare, GroupMember
-from app.schemas import ExpenseCreate, ExpenseResponse
+from app.dependencies import get_current_active_user
+from app.models import Expense, ExpenseShare, GroupMember, User
+from app.schemas import ExpenseCreate, ExpenseResponse, ExpenseUpdate
 from app.services.vision_service import analyze_receipt
 
 router = APIRouter(prefix="/expenses", tags=["expenses"])
 
 UPLOADS_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "uploads"
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def check_group_membership(session: Session, group_id: int, user_id: int) -> GroupMember:
+    """Check if user is member of group."""
+    member = session.exec(
+        select(GroupMember).where(
+            GroupMember.group_id == group_id,
+            GroupMember.user_id == user_id
+        )
+    ).first()
+    if not member:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: Not a member of this group"
+        )
+    return member
 
 
 def _create_expense_with_shares(
@@ -40,29 +58,44 @@ def _create_expense_with_shares(
 
 
 @router.post("/", response_model=ExpenseResponse)
-def create_expense(expense: ExpenseCreate, session: Session = Depends(get_session)):
+def create_expense(
+    expense: ExpenseCreate,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user)
+):
     """
     Add an expense. If shares omitted → equal split among all group members.
     If shares provided → must sum to amount.
     """
+    # Check user is member of the group
+    check_group_membership(session, expense.group_id, current_user.id)
+    
+    # Get group members
     members = session.exec(
         select(GroupMember).where(GroupMember.group_id == expense.group_id)
     ).all()
     if not members:
-        raise HTTPException(status_code=404, detail="Group not found or has no members")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Group not found or has no members"
+        )
     member_ids = [m.user_id for m in members]
 
+    # Validate payer is group member
     if expense.payer_id not in member_ids:
-        raise HTTPException(status_code=400, detail="Payer must be a group member")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Payer must be a group member"
+        )
 
     if expense.shares:
-        total = sum(s.share_amount for s in expense.shares)
-        if abs(total - expense.amount) > 0.01:
-            raise HTTPException(status_code=400, detail="Shares must sum to amount")
         shares = [(s.user_id, s.share_amount) for s in expense.shares]
         for uid, _ in shares:
             if uid not in member_ids:
-                raise HTTPException(status_code=400, detail=f"User {uid} not in group")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"User {uid} not in group"
+                )
     else:
         # Equal split
         n = len(member_ids)
@@ -78,29 +111,154 @@ def create_expense(expense: ExpenseCreate, session: Session = Depends(get_sessio
 
 
 @router.post("/upload")
-def upload_receipt(file: UploadFile = File(...)):
+def upload_receipt(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_active_user)
+):
     """
     Upload a receipt image for AI scan. Returns extracted amount, description, date.
     """
+    # Validate file type
     if not file.content_type or not file.content_type.startswith("image/"):
-        raise HTTPException(status_code=400, detail="File must be an image (jpeg, png, webp)")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File must be an image (jpeg, png, webp)"
+        )
+    
     try:
         contents = file.file.read()
         if len(contents) > 10 * 1024 * 1024:  # 10 MB
-            raise HTTPException(status_code=400, detail="Image too large (max 10 MB)")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Image too large (max 10 MB)"
+            )
         result = analyze_receipt(contents)
         return result
     except ValueError as e:
-        raise HTTPException(status_code=422, detail=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(e)
+        )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Vision analysis failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Vision analysis failed: {e}"
+        )
 
 
-@router.get("/", response_model=list[ExpenseResponse])
-def list_expenses(group_id: int | None = None, session: Session = Depends(get_session)):
-    """List expenses. If group_id provided, filter by group."""
+@router.get("/", response_model=List[ExpenseResponse])
+def list_expenses(
+    group_id: int | None = None,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user)
+):
+    """List expenses. If group_id provided, filter by group (user must be member)."""
     if group_id:
+        # Check user is member of the group
+        check_group_membership(session, group_id, current_user.id)
         expenses = session.exec(select(Expense).where(Expense.group_id == group_id)).all()
     else:
-        expenses = session.exec(select(Expense)).all()
+        # List all expenses from groups where user is member
+        user_group_ids = session.exec(
+            select(GroupMember.group_id).where(GroupMember.user_id == current_user.id)
+        ).all()
+        expenses = session.exec(
+            select(Expense).where(Expense.group_id.in_(user_group_ids))
+        ).all()
     return list(expenses)
+
+
+@router.get("/{expense_id}", response_model=ExpenseResponse)
+def get_expense(
+    expense_id: int,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Get expense by ID (user must be member of the expense's group)."""
+    expense = session.get(Expense, expense_id)
+    if not expense:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Expense not found"
+        )
+    
+    # Check user is member of the expense's group
+    check_group_membership(session, expense.group_id, current_user.id)
+    
+    return expense
+
+
+@router.put("/{expense_id}", response_model=ExpenseResponse)
+def update_expense(
+    expense_id: int,
+    expense_update: ExpenseUpdate,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Update expense (only description and category, user must be payer)."""
+    expense = session.get(Expense, expense_id)
+    if not expense:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Expense not found"
+        )
+    
+    # Check user is member of the expense's group
+    check_group_membership(session, expense.group_id, current_user.id)
+    
+    # Only payer can update expense
+    if expense.payer_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the payer can update this expense"
+        )
+    
+    # Update fields
+    if expense_update.description is not None:
+        expense.description = expense_update.description
+    if expense_update.category is not None:
+        expense.category = expense_update.category
+    
+    session.add(expense)
+    session.commit()
+    session.refresh(expense)
+    
+    return expense
+
+
+@router.delete("/{expense_id}")
+def delete_expense(
+    expense_id: int,
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Delete expense (only payer can delete)."""
+    expense = session.get(Expense, expense_id)
+    if not expense:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Expense not found"
+        )
+    
+    # Check user is member of the expense's group
+    check_group_membership(session, expense.group_id, current_user.id)
+    
+    # Only payer can delete expense
+    if expense.payer_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the payer can delete this expense"
+        )
+    
+    # Delete expense shares first
+    shares = session.exec(
+        select(ExpenseShare).where(ExpenseShare.expense_id == expense_id)
+    ).all()
+    for share in shares:
+        session.delete(share)
+    
+    # Delete expense
+    session.delete(expense)
+    session.commit()
+    
+    return {"status": "ok", "message": "Expense deleted successfully"}

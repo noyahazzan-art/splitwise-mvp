@@ -6,30 +6,32 @@ services:
     container_name: openhands-agent
     restart: unless-stopped
     environment:
-      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+      - OLLAMA_BASE_URL=http://172.28.174.246:11434
       - PYTHONUNBUFFERED=1
       - OPENHANDS_API_KEY=${OPENHANDS_API_KEY:-}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - SANDBOX_CONTAINER_URL_PATTERN=http://172.17.0.1:{port}
     volumes:
       - ../:/workspace:rw
       - /var/run/docker.sock:/var/run/docker.sock:rw
     working_dir: /workspace
-    network_mode: host
+    ports:
+      - "3001:3000" # Expose backend API port to host
     stdin_open: true
     tty: true
     command: >
       bash -c "
         echo '🚀 OpenHands container starting...' &&
         echo '📁 Workspace: /workspace' &&
-        echo '🔗 Ollama: http://host.docker.internal:11434' &&
+        echo '🔗 Ollama: http://172.28.174.246:11434' &&
         echo '⏳ Waiting for Ollama...' &&
-        until curl -s http://host.docker.internal:11434/api/tags > /dev/null; do
+        until curl -s http://172.28.174.246:11434/api/tags > /dev/null; do
           echo 'Waiting for Ollama to be available...'
           sleep 2
         done &&
         echo '✅ Ollama is available!' &&
-        echo '🎯 Starting OpenHands...' &&
-        python -m openhands.cli.main
+        echo '🎯 Starting OpenHands on port 3000...' &&
+        python -m openhands.server.listen --port 3000 --host 0.0.0.0
       "
 
   # Optional: Ollama service if not running on host
@@ -44,7 +46,7 @@ services:
     ports:
       - "11434:11434"
     profiles:
-      - standalone  # Only start if explicitly requested
+      - standalone # Only start if explicitly requested
 
 volumes:
   ollama_data:

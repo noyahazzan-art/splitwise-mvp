@@ -5,15 +5,17 @@ import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, Query, Request, HTTPException
+from fastapi import Depends, FastAPI, Query, Request, HTTPException, status
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
+from fastapi.middleware.cors import CORSMiddleware
 from sqlmodel import Session, select
 
 from app.balance import calculate_net_balances, simplify_debts
 from app.database import get_session, init_db
+from app.middleware import setup_middleware
 from app.models import Group, GroupMember, User
-from app.routers import balance, expenses, groups, users
+from app.routers import auth, balance, expenses, groups, users
 
 # Configure logging
 logging.basicConfig(
@@ -41,39 +43,24 @@ app = FastAPI(
     redoc_url=None
 )
 
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://localhost:8080"],  # Add your frontend URLs
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Setup security and rate limiting middleware
+setup_middleware(app)
+
+# Include routers
+app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(groups.router)
 app.include_router(expenses.router)
 app.include_router(balance.router)
-
-
-@app.middleware("http")
-async def add_logging_middleware(request, call_next):
-    """Add logging and security headers."""
-    start_time = time.time()
-    
-    # Log request
-    logger.info(f"{request.method} {request.url.path} - Started")
-    
-    try:
-        response = await call_next(request)
-        
-        # Add security headers
-        response.headers["X-Content-Type-Options"] = "nosniff"
-        response.headers["X-Frame-Options"] = "DENY"
-        response.headers["X-XSS-Protection"] = "1; mode=block"
-        
-        # Log response
-        process_time = time.time() - start_time
-        logger.info(f"{request.method} {request.url.path} - {response.status_code} - {process_time:.3f}s")
-        
-        return response
-    except Exception as e:
-        logger.error(f"Request failed: {request.method} {request.url.path} - {str(e)}")
-        return JSONResponse(
-            status_code=500,
-            content={"detail": "Internal server error"}
-        )
 
 
 @app.get("/", response_class=HTMLResponse)
