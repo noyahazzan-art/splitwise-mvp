@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 from collections import defaultdict
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Sequence
 
 from sqlmodel import Session, select
 
@@ -20,7 +20,7 @@ TOLERANCE = 0.01
 
 
 def compute_net_balances(
-    expenses: list,
+    expenses: Sequence,
     shares_by_expense: dict[int, list],
 ) -> dict[int, float]:
     """

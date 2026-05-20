@@ -28,6 +28,7 @@
   "reportImplicitStringConcatenation": "none",
   "reportUnboundVariable": "none",
   "reportUnsupportedDunderAll": "none",
+  "reportMissingModuleSource": "none",
   "typeCheckingMode": "off",
   "useLibraryCodeForTypes": false,
   "disableBytesTypePromotions": true,
