@@ -102,7 +102,7 @@ def dashboard(
             for uid in user_ids:
                 u = session.get(User, uid)
                 if u:
-                    user_names[uid] = u.name
+                    user_names[int(uid)] = u.name
             # Group members for Add Expense form
             members = session.exec(
                 select(GroupMember).where(GroupMember.group_id == group_id)

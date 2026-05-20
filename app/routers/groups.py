@@ -13,7 +13,7 @@ from app.schemas import GroupAddMember, GroupCreate, GroupResponse
 router = APIRouter(prefix="/groups", tags=["groups"])
 
 
-def check_group_membership(session: Session, group_id: int, user_id: int) -> GroupMember:
+def check_group_membership(session: Session, group_id: int, user_id: int | None) -> GroupMember:
     """Check if user is member of group and return member record."""
     member = session.exec(
         select(GroupMember).where(
@@ -29,7 +29,7 @@ def check_group_membership(session: Session, group_id: int, user_id: int) -> Gro
     return member
 
 
-def check_group_ownership(session: Session, group_id: int, user_id: int) -> GroupMember:
+def check_group_ownership(session: Session, group_id: int, user_id: int | None) -> GroupMember:
     """Check if user is owner of group and return member record."""
     member = check_group_membership(session, group_id, user_id)
     if member.role != MemberRole.OWNER:
@@ -40,7 +40,7 @@ def check_group_ownership(session: Session, group_id: int, user_id: int) -> Grou
     return member
 
 
-@router.post("/", response_model=GroupResponse)
+@router.post("/", response_model=GroupResponse, status_code=status.HTTP_201_CREATED)
 def create_group(
     group: GroupCreate,
     session: Session = Depends(get_session),

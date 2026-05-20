@@ -14,7 +14,7 @@ from app.services.vision_service import analyze_receipt
 router = APIRouter(prefix="/expenses", tags=["expenses"])
 
 
-def check_group_membership(session: Session, group_id: int, user_id: int) -> GroupMember:
+def check_group_membership(session: Session, group_id: int, user_id: int | None) -> GroupMember:
     """Check if user is member of group."""
     member = session.exec(
         select(GroupMember).where(
@@ -162,7 +162,7 @@ def list_expenses(
             select(GroupMember.group_id).where(GroupMember.user_id == current_user.id)
         ).all()
         expenses = session.exec(
-            select(Expense).where(Expense.group_id.in_(user_group_ids))
+            select(Expense).where(Expense.group_id.in_(user_group_ids))  # type: ignore[attr-defined]
         ).all()
     return list(expenses)
 
