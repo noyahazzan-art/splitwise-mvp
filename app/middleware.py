@@ -64,16 +64,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         if hasattr(request.state, 'user') and request.state.user:
             return f"user:{request.state.user.id}"
         
-        # Fall back to IP address
-        forwarded_for = request.headers.get("X-Forwarded-For")
-        if forwarded_for:
-            return f"ip:{forwarded_for.split(',')[0].strip()}"
-        
-        real_ip = request.headers.get("X-Real-IP")
-        if real_ip:
-            return f"ip:{real_ip}"
-        
-        return f"ip:{request.client.host}"
+        # Use direct connection IP only — X-Forwarded-For can be spoofed by clients
+        return f"ip:{request.client.host if request.client else 'unknown'}"
     
     def _cleanup_old_requests(self, client_id: str, current_time: float):
         """Remove requests older than the time period."""

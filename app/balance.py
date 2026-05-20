@@ -72,6 +72,10 @@ def calculate_net_balances(session: Session, group_id: int) -> dict[int, float]:
             group_id,
             total,
         )
+        raise ValueError(
+            f"Balance integrity error for group {group_id}: net sum={total:.4f} (expected 0). "
+            "This indicates corrupted expense data."
+        )
 
     return net
 

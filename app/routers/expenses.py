@@ -1,6 +1,5 @@
 """Expenses API with authentication and enhanced validation."""
 
-from pathlib import Path
 from typing import List
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
@@ -13,9 +12,6 @@ from app.schemas import ExpenseCreate, ExpenseResponse, ExpenseUpdate
 from app.services.vision_service import analyze_receipt
 
 router = APIRouter(prefix="/expenses", tags=["expenses"])
-
-UPLOADS_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "uploads"
-UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def check_group_membership(session: Session, group_id: int, user_id: int) -> GroupMember:
@@ -126,12 +122,15 @@ def upload_receipt(
         )
     
     try:
-        contents = file.file.read()
-        if len(contents) > 10 * 1024 * 1024:  # 10 MB
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Image too large (max 10 MB)"
-            )
+        MAX_SIZE = 10 * 1024 * 1024  # 10 MB
+        contents = b""
+        for chunk in iter(lambda: file.file.read(65536), b""):
+            contents += chunk
+            if len(contents) > MAX_SIZE:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Image too large (max 10 MB)"
+                )
         result = analyze_receipt(contents)
         return result
     except ValueError as e:

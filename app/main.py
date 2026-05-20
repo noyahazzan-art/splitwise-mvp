@@ -5,6 +5,7 @@ import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+import secrets
 from fastapi import Depends, FastAPI, Query, Request, HTTPException, status
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
@@ -14,6 +15,7 @@ from sqlmodel import Session, select
 from app.balance import calculate_net_balances, simplify_debts
 from app.database import get_session, init_db
 from app.middleware import setup_middleware
+from app.dependencies import get_current_active_user
 from app.models import Group, GroupMember, User
 from app.routers import auth, balance, expenses, groups, users
 
@@ -83,7 +85,11 @@ def dashboard(
     if group_id:
         selected_group = session.get(Group, group_id)
         if selected_group:
-            net = calculate_net_balances(session, group_id)
+            try:
+                net = calculate_net_balances(session, group_id)
+            except ValueError as e:
+                logger.error("Balance integrity error on dashboard: %s", e)
+                net = {}
             net_sum = sum(net.values())
             net_sum_ok = abs(net_sum) < 0.01
             balances = [{"user_id": uid, "balance": round(b, 2)} for uid, b in net.items()]
@@ -129,8 +135,8 @@ def root():
 
 
 @app.get("/full_status")
-def full_status():
-    """Trading readiness check - system status without authentication."""
+def full_status(current_user: User = Depends(get_current_active_user)):
+    """Trading readiness check - system status (authenticated)."""
     return {
         "status": "healthy",
         "timestamp": time.time(),
@@ -145,8 +151,8 @@ def full_status():
 
 
 @app.get("/metrics")
-def metrics():
-    """Basic metrics endpoint for monitoring."""
+def metrics(current_user: User = Depends(get_current_active_user)):
+    """Basic metrics endpoint for monitoring (authenticated)."""
     return """# HELP splitwise_requests_total Total number of HTTP requests
 # TYPE splitwise_requests_total counter
 splitwise_requests_total 0

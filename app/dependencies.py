@@ -14,6 +14,7 @@ from app.models import User
 
 # HTTP Bearer token scheme
 security = HTTPBearer()
+security_optional = HTTPBearer(auto_error=False)
 
 
 async def get_current_user(
@@ -46,7 +47,7 @@ async def get_current_active_user(
 
 
 def get_optional_current_user(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security_optional),
     session: Session = Depends(get_session)
 ) -> Optional[User]:
     """Get current user if token is provided, otherwise return None."""
