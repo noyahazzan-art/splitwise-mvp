@@ -53,7 +53,7 @@ def _create_expense_with_shares(
     return db_exp
 
 
-@router.post("/", response_model=ExpenseResponse)
+@router.post("/", response_model=ExpenseResponse, status_code=status.HTTP_201_CREATED)
 def create_expense(
     expense: ExpenseCreate,
     session: Session = Depends(get_session),

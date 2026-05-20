@@ -4,12 +4,15 @@ JWT-based authentication with secure password hashing.
 """
 
 import os
+import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Union
 
+import bcrypt
 from jose import JWTError, jwt
-from passlib.context import CryptContext
-from pydantic import BaseModel
+import re
+
+from pydantic import BaseModel, Field, field_validator
 
 # Configuration
 SECRET_KEY = os.getenv("SECRET_KEY")
@@ -18,8 +21,6 @@ if not SECRET_KEY:
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
-# Password hashing
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 class Token(BaseModel):
@@ -38,7 +39,24 @@ class UserCreate(BaseModel):
     """User registration model."""
     name: str
     email: str
-    password: str
+    password: str = Field(..., min_length=8)
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, v: str) -> str:
+        if re.search(r"[<>\"'&]", v):
+            raise ValueError("Name contains invalid characters")
+        return v.strip()
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, v: str) -> str:
+        # Reject double dots and ensure each domain label is valid
+        pattern = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9-]+(\.[a-zA-Z0-9-]+)*\.[a-zA-Z]{2,}$"
+        cleaned = v.strip()
+        if not re.match(pattern, cleaned) or ".." in cleaned:
+            raise ValueError("Invalid email format")
+        return cleaned.lower()
 
 
 class UserLogin(BaseModel):
@@ -59,12 +77,12 @@ class UserResponse(BaseModel):
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a password against its hash."""
-    return pwd_context.verify(plain_password, hashed_password)
+    return bcrypt.checkpw(plain_password.encode("utf-8"), hashed_password.encode("utf-8"))
 
 
 def get_password_hash(password: str) -> str:
     """Generate password hash."""
-    return pwd_context.hash(password)
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
@@ -74,7 +92,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
         expire = datetime.now(timezone.utc) + expires_delta
     else:
         expire = datetime.now(timezone.utc) + timedelta(minutes=15)
-    to_encode.update({"exp": expire})
+    to_encode.update({"exp": expire, "jti": str(uuid.uuid4())})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
