@@ -9,7 +9,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional, Union
 
 import bcrypt
-from jose import JWTError, jwt
+from jose import JWTError, jwt  # type: ignore[import-untyped]
 import re
 
 from pydantic import BaseModel, Field, field_validator

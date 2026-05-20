@@ -14,7 +14,7 @@ from app.schemas import BalanceEntry, SettlementEntry
 router = APIRouter(prefix="/balance", tags=["balance"])
 
 
-def check_group_membership(session: Session, group_id: int, user_id: int) -> GroupMember:
+def check_group_membership(session: Session, group_id: int, user_id: int | None) -> GroupMember:
     """Check if user is member of group."""
     member = session.exec(
         select(GroupMember).where(
